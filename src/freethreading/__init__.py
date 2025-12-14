@@ -65,7 +65,6 @@ if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
     from multiprocessing import active_children as _active_children
     from multiprocessing import current_process as _current_worker
     from multiprocessing import get_context, get_start_method
-    from multiprocessing.pool import Pool as _WorkerPool
     from os import getpid as _get_ident
 
     _ctx = get_context("forkserver") if get_start_method() == "fork" else get_context()
@@ -79,6 +78,7 @@ if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
     _RLock = _ctx.RLock
     _Semaphore = _ctx.Semaphore
     _SimpleQueue = _ctx.SimpleQueue
+    _WorkerPool = _ctx.Pool
 
     def _active_count():
         return len(_enumerate())

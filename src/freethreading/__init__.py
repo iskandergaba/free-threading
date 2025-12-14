@@ -53,12 +53,13 @@ import io
 import pickle
 import platform
 import sys
-from multiprocessing.context import get_spawning_popen, set_spawning_popen
+from multiprocessing.context import BaseContext, get_spawning_popen, set_spawning_popen
 from multiprocessing.process import BaseProcess
 from multiprocessing.reduction import dump
 from threading import Thread
 from typing import Literal
 
+_mp_context: BaseContext | None = None
 _backend: Literal["threading", "multiprocessing"]
 if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
     from concurrent.futures import ProcessPoolExecutor as _WorkerPoolExecutor
@@ -67,18 +68,20 @@ if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
     from multiprocessing import get_context, get_start_method
     from os import getpid as _get_ident
 
-    _ctx = get_context("forkserver") if get_start_method() == "fork" else get_context()
-    _Barrier = _ctx.Barrier
-    _BoundedSemaphore = _ctx.BoundedSemaphore
-    _Condition = _ctx.Condition
-    _Event = _ctx.Event
-    _Queue = _ctx.JoinableQueue
-    _Lock = _ctx.Lock
-    _Worker = _ctx.Process
-    _RLock = _ctx.RLock
-    _Semaphore = _ctx.Semaphore
-    _SimpleQueue = _ctx.SimpleQueue
-    _WorkerPool = _ctx.Pool
+    _mp_context = (
+        get_context("forkserver") if get_start_method() == "fork" else get_context()
+    )
+    _Barrier = _mp_context.Barrier
+    _BoundedSemaphore = _mp_context.BoundedSemaphore
+    _Condition = _mp_context.Condition
+    _Event = _mp_context.Event
+    _Lock = _mp_context.Lock
+    _RLock = _mp_context.RLock
+    _Semaphore = _mp_context.Semaphore
+    _Queue = _mp_context.JoinableQueue
+    _SimpleQueue = _mp_context.SimpleQueue
+    _Worker = _mp_context.Process
+    _WorkerPool = _mp_context.Pool
 
     def _active_count():
         return len(_enumerate())
@@ -1602,6 +1605,8 @@ class WorkerPoolExecutor:
     """
 
     def __init__(self, max_workers=None, **kwargs):
+        if _backend == "multiprocessing":
+            kwargs["mp_context"] = _mp_context
         self._executor = _WorkerPoolExecutor(max_workers=max_workers, **kwargs)
 
     def submit(self, fn, *args, **kwargs):

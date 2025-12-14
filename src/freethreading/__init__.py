@@ -1585,6 +1585,10 @@ class WorkerPoolExecutor:
     ----------
     max_workers : int, optional
         Maximum number of workers in the pool.
+    initializer : callable, optional
+        A callable used to initialize worker threads or processes.
+    initargs : tuple, optional
+        A tuple of arguments to pass to the initializer.
     **kwargs
         Additional arguments passed to the underlying executor.
 
@@ -1604,10 +1608,15 @@ class WorkerPoolExecutor:
     [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
     """
 
-    def __init__(self, max_workers=None, **kwargs):
+    def __init__(self, max_workers=None, initializer=None, initargs=(), **kwargs):
         if _backend == "multiprocessing":
             kwargs["mp_context"] = _mp_context
-        self._executor = _WorkerPoolExecutor(max_workers=max_workers, **kwargs)
+        self._executor = _WorkerPoolExecutor(
+            max_workers=max_workers,
+            initializer=initializer,
+            initargs=initargs,
+            **kwargs,
+        )
 
     def submit(self, fn, *args, **kwargs):
         """

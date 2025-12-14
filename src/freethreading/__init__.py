@@ -179,7 +179,7 @@ class Barrier:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._barrier.__reduce__()
+        return super().__reduce__()
 
     def wait(self, timeout=None):
         """
@@ -263,7 +263,7 @@ class BoundedSemaphore:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._semaphore.__reduce__()
+        return super().__reduce__()
 
     def acquire(self, blocking=True, timeout=None):
         """
@@ -357,7 +357,7 @@ class Condition:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._condition.__reduce__()
+        return super().__reduce__()
 
     def acquire(self, blocking=True, timeout=None):
         """
@@ -528,7 +528,7 @@ class Event:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._event.__reduce__()
+        return super().__reduce__()
 
     def is_set(self):
         """
@@ -603,7 +603,7 @@ class Lock:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._lock.__reduce__()
+        return super().__reduce__()
 
     def acquire(self, blocking=True, timeout=None):
         """
@@ -724,7 +724,7 @@ class Queue:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._queue.__reduce__()
+        return super().__reduce__()
 
     def put(self, item, block=True, timeout=None):
         """
@@ -900,7 +900,7 @@ class RLock:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._lock.__reduce__()
+        return super().__reduce__()
 
     def acquire(self, blocking=True, timeout=None):
         """
@@ -997,7 +997,7 @@ class Semaphore:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._semaphore.__reduce__()
+        return super().__reduce__()
 
     def acquire(self, blocking=True, timeout=None):
         """
@@ -1070,7 +1070,7 @@ class SimpleQueue:
     def __reduce__(self):
         if _backend == "threading":
             return (_raise_unpickle_type_error, ())
-        return self._queue.__reduce__()
+        return super().__reduce__()
 
     def put(self, item):
         """

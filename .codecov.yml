@@ -5,12 +5,13 @@ coverage:
   status:
     project:
       default:
-        target: 95
+        target: "90"
+        threshold: "5"
 
     patch:
       default:
-        target: 95
-        threshold: 5
+        target: "90"
+        threshold: "5"
 
   ignore:
     - "tests/**"

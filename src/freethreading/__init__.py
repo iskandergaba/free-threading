@@ -49,31 +49,39 @@ multiprocessing : Process-based parallelism.
 concurrent.futures : High-level interface for asynchronous execution.
 """
 
+import io
 import pickle
 import platform
 import sys
+from multiprocessing.context import BaseContext, get_spawning_popen, set_spawning_popen
 from multiprocessing.process import BaseProcess
+from multiprocessing.reduction import dump
 from threading import Thread
 from typing import Literal
 
+_mp_context: BaseContext | None = None
 _backend: Literal["threading", "multiprocessing"]
-
 if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
     from concurrent.futures import ProcessPoolExecutor as _WorkerPoolExecutor
-    from multiprocessing import Barrier as _Barrier
-    from multiprocessing import BoundedSemaphore as _BoundedSemaphore
-    from multiprocessing import Condition as _Condition
-    from multiprocessing import Event as _Event
-    from multiprocessing import JoinableQueue as _Queue
-    from multiprocessing import Lock as _Lock
-    from multiprocessing import Process as _Worker
-    from multiprocessing import RLock as _RLock
-    from multiprocessing import Semaphore as _Semaphore
-    from multiprocessing import SimpleQueue as _SimpleQueue
     from multiprocessing import active_children as _active_children
     from multiprocessing import current_process as _current_worker
-    from multiprocessing.pool import Pool as _WorkerPool
+    from multiprocessing import get_context, get_start_method
     from os import getpid as _get_ident
+
+    _mp_context = (
+        get_context("forkserver") if get_start_method() == "fork" else get_context()
+    )
+    _Barrier = _mp_context.Barrier
+    _BoundedSemaphore = _mp_context.BoundedSemaphore
+    _Condition = _mp_context.Condition
+    _Event = _mp_context.Event
+    _Lock = _mp_context.Lock
+    _RLock = _mp_context.RLock
+    _Semaphore = _mp_context.Semaphore
+    _Queue = _mp_context.JoinableQueue
+    _SimpleQueue = _mp_context.SimpleQueue
+    _Worker = _mp_context.Process
+    _WorkerPool = _mp_context.Pool
 
     def _active_count():
         return len(_enumerate())
@@ -111,16 +119,16 @@ else:
     _backend = "threading"
 
 
-def _validate_picklability(**kwargs):
-    """Validate that all arguments are picklable for multiprocessing compatibility."""
-    try:
-        pickle.dumps(tuple(kwargs.values()))
-    except (AttributeError, TypeError, pickle.PicklingError) as e:
-        raise ValueError(
-            f"{list(kwargs.keys())} must be picklable for compatibility with "
-            f"multiprocessing backend. Error: {e}. "
-            f"Use module-level functions instead of lambdas or nested functions."
-        ) from e
+class _DummyPopen:
+    """Dummy Popen for picklability validation with ForkingPickler."""
+
+    @staticmethod
+    def duplicate_for_child(fd):
+        return fd
+
+    class DupFd:
+        def __init__(self, fd):
+            self.fd = fd
 
 
 class Barrier:
@@ -170,6 +178,11 @@ class Barrier:
 
     def __init__(self, parties, action=None, timeout=None):
         self._barrier = _Barrier(parties, action, timeout)
+
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
 
     def wait(self, timeout=None):
         """
@@ -249,6 +262,11 @@ class BoundedSemaphore:
 
     def __init__(self, value=1):
         self._semaphore = _BoundedSemaphore(value)
+
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
 
     def acquire(self, blocking=True, timeout=None):
         """
@@ -338,6 +356,11 @@ class Condition:
         self._condition = _Condition(
             lock._lock if isinstance(lock, (Lock, RLock)) else None  # type: ignore[arg-type]
         )
+
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
 
     def acquire(self, blocking=True, timeout=None):
         """
@@ -505,6 +528,11 @@ class Event:
     def __init__(self):
         self._event = _Event()
 
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
+
     def is_set(self):
         """
         Return True if and only if the internal flag is set.
@@ -574,6 +602,11 @@ class Lock:
 
     def __init__(self):
         self._lock = _Lock()
+
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
 
     def acquire(self, blocking=True, timeout=None):
         """
@@ -690,6 +723,11 @@ class Queue:
 
     def __init__(self, maxsize=0):
         self._queue = _Queue(maxsize)
+
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
 
     def put(self, item, block=True, timeout=None):
         """
@@ -862,6 +900,11 @@ class RLock:
     def __init__(self):
         self._lock = _RLock()
 
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
+
     def acquire(self, blocking=True, timeout=None):
         """
         Acquire the lock, incrementing the recursion level.
@@ -954,6 +997,11 @@ class Semaphore:
     def __init__(self, value=1):
         self._semaphore = _Semaphore(value)
 
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
+
     def acquire(self, blocking=True, timeout=None):
         """
         Acquire the semaphore, decrementing the counter.
@@ -1021,6 +1069,11 @@ class SimpleQueue:
 
     def __init__(self):
         self._queue = _SimpleQueue()
+
+    def __reduce__(self):
+        if _backend == "threading":
+            return (_raise_unpickle_type_error, ())
+        return super().__reduce__()
 
     def put(self, item):
         """
@@ -1532,6 +1585,10 @@ class WorkerPoolExecutor:
     ----------
     max_workers : int, optional
         Maximum number of workers in the pool.
+    initializer : callable, optional
+        A callable used to initialize worker threads or processes.
+    initargs : tuple, optional
+        A tuple of arguments to pass to the initializer.
     **kwargs
         Additional arguments passed to the underlying executor.
 
@@ -1551,8 +1608,15 @@ class WorkerPoolExecutor:
     [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
     """
 
-    def __init__(self, max_workers=None, **kwargs):
-        self._executor = _WorkerPoolExecutor(max_workers=max_workers, **kwargs)
+    def __init__(self, max_workers=None, initializer=None, initargs=(), **kwargs):
+        if _backend == "multiprocessing":
+            kwargs["mp_context"] = _mp_context
+        self._executor = _WorkerPoolExecutor(
+            max_workers=max_workers,
+            initializer=initializer,
+            initargs=initargs,
+            **kwargs,
+        )
 
     def submit(self, fn, *args, **kwargs):
         """
@@ -1630,6 +1694,26 @@ class WorkerPoolExecutor:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the runtime context (shutdown the executor)."""
         return self._executor.__exit__(exc_type, exc_val, exc_tb)
+
+
+def _raise_unpickle_type_error():
+    raise TypeError("Cannot unpickle freethreading primitives on threading backend")
+
+
+def _validate_picklability(**kwargs):
+    """Validate that all arguments are picklable for multiprocessing compatibility."""
+    spawning_popen = get_spawning_popen()
+    set_spawning_popen(_DummyPopen)
+    try:
+        dump(tuple(kwargs.values()), io.BytesIO())
+    except (AttributeError, TypeError, pickle.PicklingError) as e:
+        raise ValueError(
+            f"{list(kwargs.keys())} must be picklable for compatibility with "
+            f"multiprocessing backend. Error: {e}. "
+            f"Use module-level functions instead of lambdas or nested functions."
+        ) from e
+    finally:
+        set_spawning_popen(spawning_popen)
 
 
 def active_children() -> list[Thread] | list[BaseProcess]:

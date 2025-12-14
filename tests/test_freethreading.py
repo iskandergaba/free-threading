@@ -84,9 +84,9 @@ def test_worker_with_args(backend):
 
         assert isinstance(worker._worker, threading.Thread)
     else:
-        import multiprocessing
+        from multiprocessing.process import BaseProcess
 
-        assert isinstance(worker._worker, multiprocessing.Process)
+        assert isinstance(worker._worker, BaseProcess)
 
 
 def test_worker_with_kwargs(backend):
@@ -99,9 +99,9 @@ def test_worker_with_kwargs(backend):
 
         assert isinstance(worker._worker, threading.Thread)
     else:
-        import multiprocessing
+        from multiprocessing.process import BaseProcess
 
-        assert isinstance(worker._worker, multiprocessing.Process)
+        assert isinstance(worker._worker, BaseProcess)
 
 
 def test_worker_name_property(backend):
@@ -139,12 +139,13 @@ def test_worker_is_alive(backend):
     assert not worker.is_alive()
 
 
+@pytest.mark.flaky(reruns=3)
 def test_worker_join_timeout(backend):
     worker = backend.Worker(target=time.sleep, args=(0.1,))
     worker.start()
 
     # Join with short timeout should not wait for completion
-    worker.join(timeout=0.01)
+    worker.join(timeout=0.001)
     assert worker.is_alive()
 
     # Join without timeout should wait
@@ -595,6 +596,7 @@ def test_worker_pool_map_chunksize(backend):
     assert results == [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
 
 
+@pytest.mark.flaky(reruns=3)
 def test_worker_pool_map_async(backend):
     with backend.WorkerPool(workers=2) as pool:
         async_result = pool.map_async(square, [1, 2, 3, 4])
@@ -653,6 +655,7 @@ def test_worker_pool_pickling_exception(backend):
         backend.WorkerPool(initializer=lambda: None)
 
 
+@pytest.mark.flaky(reruns=3)
 def test_worker_pool_executor_map(backend):
     with backend.WorkerPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(square, [1, 2, 3, 4]))

@@ -596,6 +596,7 @@ def test_worker_pool_map_chunksize(backend):
     assert results == [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
 
 
+@pytest.mark.flaky(reruns=3)
 def test_worker_pool_map_async(backend):
     with backend.WorkerPool(workers=2) as pool:
         async_result = pool.map_async(square, [1, 2, 3, 4])

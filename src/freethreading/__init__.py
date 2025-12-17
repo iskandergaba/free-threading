@@ -54,7 +54,12 @@ import pickle
 import platform
 import sys
 from functools import cache
-from multiprocessing.context import BaseContext, get_spawning_popen, set_spawning_popen
+from multiprocessing.context import (
+    DefaultContext,
+    ForkServerContext,
+    get_spawning_popen,
+    set_spawning_popen,
+)
 from multiprocessing.process import BaseProcess
 from multiprocessing.reduction import dump
 from threading import Thread
@@ -82,7 +87,15 @@ def get_backend() -> Literal["threading", "multiprocessing"]:
     return "threading"
 
 
-_mp_context: BaseContext | None = None
+@cache
+def _get_mp_context() -> ForkServerContext | DefaultContext:
+    if get_backend() == "threading":
+        raise AssertionError(
+            "Attempting to get multiprocessing context while on threading backend"
+        )
+    return get_context("forkserver") if get_start_method() == "fork" else get_context()
+
+
 if get_backend() == "threading":
     from concurrent.futures import ThreadPoolExecutor as _WorkerPoolExecutor
     from multiprocessing.pool import ThreadPool as _WorkerPool
@@ -113,20 +126,17 @@ else:
     from multiprocessing import get_context, get_start_method
     from os import getpid as _get_ident
 
-    _mp_context = (
-        get_context("forkserver") if get_start_method() == "fork" else get_context()
-    )
-    _Barrier = _mp_context.Barrier
-    _BoundedSemaphore = _mp_context.BoundedSemaphore
-    _Condition = _mp_context.Condition
-    _Event = _mp_context.Event
-    _Lock = _mp_context.Lock
-    _RLock = _mp_context.RLock
-    _Semaphore = _mp_context.Semaphore
-    _Queue = _mp_context.JoinableQueue
-    _SimpleQueue = _mp_context.SimpleQueue
-    _Worker = _mp_context.Process
-    _WorkerPool = _mp_context.Pool
+    _Barrier = _get_mp_context().Barrier
+    _BoundedSemaphore = _get_mp_context().BoundedSemaphore
+    _Condition = _get_mp_context().Condition
+    _Event = _get_mp_context().Event
+    _Lock = _get_mp_context().Lock
+    _RLock = _get_mp_context().RLock
+    _Semaphore = _get_mp_context().Semaphore
+    _Queue = _get_mp_context().JoinableQueue
+    _SimpleQueue = _get_mp_context().SimpleQueue
+    _Worker = _get_mp_context().Process
+    _WorkerPool = _get_mp_context().Pool
 
     def _active_count():
         return len(_enumerate())
@@ -1628,7 +1638,7 @@ class WorkerPoolExecutor:
 
     def __init__(self, max_workers=None, initializer=None, initargs=(), **kwargs):
         if get_backend() == "multiprocessing":
-            kwargs["mp_context"] = _mp_context
+            kwargs["mp_context"] = _get_mp_context()
         self._executor = _WorkerPoolExecutor(
             max_workers=max_workers,
             initializer=initializer,

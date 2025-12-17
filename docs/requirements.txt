@@ -33,7 +33,7 @@ pyyaml==6.0.3 ; python_full_version >= '3.12'
     # via sphinx-autoapi
 requests==2.32.5 ; python_full_version >= '3.12'
     # via sphinx
-roman-numerals==3.1.0 ; python_full_version >= '3.12'
+roman-numerals==4.1.0 ; python_full_version >= '3.12'
     # via sphinx
 snowballstemmer==3.0.1 ; python_full_version >= '3.12'
     # via sphinx

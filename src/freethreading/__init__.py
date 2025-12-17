@@ -53,15 +53,60 @@ import io
 import pickle
 import platform
 import sys
+from functools import cache
 from multiprocessing.context import BaseContext, get_spawning_popen, set_spawning_popen
 from multiprocessing.process import BaseProcess
 from multiprocessing.reduction import dump
 from threading import Thread
 from typing import Literal
 
+
+@cache
+def get_backend() -> Literal["threading", "multiprocessing"]:
+    """
+    Get the name of the active concurrency backend.
+
+    Returns
+    -------
+    Literal['threading', 'multiprocessing']
+        'threading' when GIL is disabled, and 'multiprocessing' otherwise.
+
+    Examples
+    --------
+    >>> from freethreading import get_backend
+    >>> get_backend()  # 'threading' or 'multiprocessing' depending on your Python build
+    'threading'
+    """
+    if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
+        return "multiprocessing"
+    return "threading"
+
+
 _mp_context: BaseContext | None = None
-_backend: Literal["threading", "multiprocessing"]
-if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
+if get_backend() == "threading":
+    from concurrent.futures import ThreadPoolExecutor as _WorkerPoolExecutor
+    from multiprocessing.pool import ThreadPool as _WorkerPool
+    from queue import Queue as _Queue
+    from queue import SimpleQueue as _SimpleQueue
+    from threading import Barrier as _Barrier
+    from threading import BoundedSemaphore as _BoundedSemaphore
+    from threading import Condition as _Condition
+    from threading import Event as _Event
+    from threading import Lock as _Lock
+    from threading import RLock as _RLock
+    from threading import Semaphore as _Semaphore
+    from threading import Thread as _Worker
+    from threading import active_count as _active_count
+    from threading import current_thread as _current_worker
+    from threading import enumerate as _enumerate
+    from threading import get_ident as _get_ident
+
+    def _active_children():
+        children = list(_enumerate())
+        children.remove(_current_worker())
+        return children
+
+else:
     from concurrent.futures import ProcessPoolExecutor as _WorkerPoolExecutor
     from multiprocessing import active_children as _active_children
     from multiprocessing import current_process as _current_worker
@@ -90,33 +135,6 @@ if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
         workers = list(_active_children())
         workers.append(_current_worker())
         return workers
-
-    _backend = "multiprocessing"
-
-else:
-    from concurrent.futures import ThreadPoolExecutor as _WorkerPoolExecutor
-    from multiprocessing.pool import ThreadPool as _WorkerPool
-    from queue import Queue as _Queue
-    from queue import SimpleQueue as _SimpleQueue
-    from threading import Barrier as _Barrier
-    from threading import BoundedSemaphore as _BoundedSemaphore
-    from threading import Condition as _Condition
-    from threading import Event as _Event
-    from threading import Lock as _Lock
-    from threading import RLock as _RLock
-    from threading import Semaphore as _Semaphore
-    from threading import Thread as _Worker
-    from threading import active_count as _active_count
-    from threading import current_thread as _current_worker
-    from threading import enumerate as _enumerate
-    from threading import get_ident as _get_ident
-
-    def _active_children():
-        children = list(_enumerate())
-        children.remove(_current_worker())
-        return children
-
-    _backend = "threading"
 
 
 class _DummyPopen:
@@ -180,7 +198,7 @@ class Barrier:
         self._barrier = _Barrier(parties, action, timeout)
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -264,7 +282,7 @@ class BoundedSemaphore:
         self._semaphore = _BoundedSemaphore(value)
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -358,7 +376,7 @@ class Condition:
         )
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -378,7 +396,7 @@ class Condition:
         bool
             True if acquired, False if not acquired (non-blocking or timeout).
         """
-        if _backend == "threading":
+        if get_backend() == "threading":
             if timeout is None or timeout < 0:
                 timeout = -1
         else:
@@ -529,7 +547,7 @@ class Event:
         self._event = _Event()
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -604,7 +622,7 @@ class Lock:
         self._lock = _Lock()
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -625,7 +643,7 @@ class Lock:
         bool
             True if acquired, False if not acquired (non-blocking or timeout).
         """
-        if _backend == "threading":
+        if get_backend() == "threading":
             if timeout is None or timeout < 0:
                 timeout = -1
         else:
@@ -725,7 +743,7 @@ class Queue:
         self._queue = _Queue(maxsize)
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -901,7 +919,7 @@ class RLock:
         self._lock = _RLock()
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -922,7 +940,7 @@ class RLock:
         bool
             True if acquired, False if not acquired (non-blocking or timeout).
         """
-        if _backend == "threading":
+        if get_backend() == "threading":
             if timeout is None or timeout < 0:
                 timeout = -1
         else:
@@ -998,7 +1016,7 @@ class Semaphore:
         self._semaphore = _Semaphore(value)
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -1071,7 +1089,7 @@ class SimpleQueue:
         self._queue = _SimpleQueue()
 
     def __reduce__(self):
-        if _backend == "threading":
+        if get_backend() == "threading":
             return (_raise_unpickle_type_error, ())
         return super().__reduce__()
 
@@ -1609,7 +1627,7 @@ class WorkerPoolExecutor:
     """
 
     def __init__(self, max_workers=None, initializer=None, initargs=(), **kwargs):
-        if _backend == "multiprocessing":
+        if get_backend() == "multiprocessing":
             kwargs["mp_context"] = _mp_context
         self._executor = _WorkerPoolExecutor(
             max_workers=max_workers,
@@ -1802,24 +1820,6 @@ def current_worker() -> Thread | BaseProcess:
     'MainThread'
     """
     return _current_worker()
-
-
-def get_backend() -> Literal["threading", "multiprocessing"]:
-    """
-    Get the name of the active concurrency backend.
-
-    Returns
-    -------
-    Literal['threading', 'multiprocessing']
-        'threading' when GIL is disabled, and 'multiprocessing' otherwise.
-
-    Examples
-    --------
-    >>> from freethreading import get_backend
-    >>> get_backend()  # 'threading' or 'multiprocessing' depending on your Python build
-    'threading'
-    """
-    return _backend
 
 
 def get_ident() -> int:

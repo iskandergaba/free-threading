@@ -56,14 +56,13 @@ import sys
 from functools import cache
 from multiprocessing.context import (
     DefaultContext,
-    ForkServerContext,
     get_spawning_popen,
     set_spawning_popen,
 )
 from multiprocessing.process import BaseProcess
 from multiprocessing.reduction import dump
 from threading import Thread
-from typing import Literal
+from typing import Literal, cast
 
 
 @cache
@@ -88,12 +87,23 @@ def get_backend() -> Literal["threading", "multiprocessing"]:
 
 
 @cache
-def _get_mp_context() -> ForkServerContext | DefaultContext:
+def _get_mp_context() -> DefaultContext:
+    """
+    Return the multiprocessing context used to spawn processes and primitives.
+
+    This function returns a cached context that replaces 'fork' with 'forkserver' for
+    safety, falling back to the default context otherwise. It should only be called when
+    running in multiprocessing backend mode.
+    """
+    from multiprocessing import get_context, get_start_method
+
     if get_backend() == "threading":
         raise AssertionError(
             "Attempting to get multiprocessing context while on threading backend"
         )
-    return get_context("forkserver") if get_start_method() == "fork" else get_context()
+    if get_start_method() == "fork":
+        return cast(DefaultContext, get_context("forkserver"))
+    return get_context()
 
 
 if get_backend() == "threading":
@@ -123,7 +133,6 @@ else:
     from concurrent.futures import ProcessPoolExecutor as _WorkerPoolExecutor
     from multiprocessing import active_children as _active_children
     from multiprocessing import current_process as _current_worker
-    from multiprocessing import get_context, get_start_method
     from os import getpid as _get_ident
 
     _Barrier = _get_mp_context().Barrier

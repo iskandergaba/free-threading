@@ -51,18 +51,16 @@ concurrent.futures : High-level interface for asynchronous execution.
 
 import io
 import pickle
-import platform
 import sys
 from functools import cache
 from multiprocessing.context import (
-    DefaultContext,
     get_spawning_popen,
     set_spawning_popen,
 )
 from multiprocessing.process import BaseProcess
 from multiprocessing.reduction import dump
 from threading import Thread
-from typing import Literal, cast
+from typing import Literal
 
 
 @cache
@@ -87,23 +85,23 @@ def get_backend() -> Literal["threading", "multiprocessing"]:
 
 
 @cache
-def _get_mp_context() -> DefaultContext:
+def _get_mp_context():
     """
     Return the multiprocessing context used to spawn processes and primitives.
 
-    This function returns a cached context that replaces 'fork' with 'forkserver' for
-    safety, falling back to the default context otherwise. It should only be called when
-    running in multiprocessing backend mode.
+    This function returns a cached context based on the platform: 'spawn' on Windows and
+    macOS, 'forkserver' otherwise. This avoids 'fork' which is unsafe with threads. It
+    should only be called when running in multiprocessing backend mode.
     """
-    from multiprocessing import get_context, get_start_method
+    from multiprocessing import get_context
 
     if get_backend() == "threading":
         raise AssertionError(
             "Attempting to get multiprocessing context while on threading backend"
         )
-    if get_start_method() == "fork":
-        return cast(DefaultContext, get_context("forkserver"))
-    return get_context()
+    if sys.platform == "win32" or sys.platform == "darwin":
+        return get_context("spawn")
+    return get_context("forkserver")
 
 
 if get_backend() == "threading":
@@ -838,7 +836,7 @@ class Queue:
         NotImplementedError
             On macOS, due to platform limitations (sem_getvalue not implemented).
         """
-        if platform.system() == "Darwin":
+        if sys.platform == "darwin":
             raise NotImplementedError(
                 "qsize() is not available on macOS due to platform limitations."
             )

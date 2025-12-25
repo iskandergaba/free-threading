@@ -39,99 +39,121 @@ discarding any backend-specific APIs. The following examples show how to get sta
 :mod:`freethreading` remains consistent with the standard library, so wrapper classes work as drop-in replacements for
 those used by :mod:`threading` and :mod:`multiprocessing`. Here's how they work:
 
-.. code-block:: pycon
+.. code-block:: python
 
-   >>> # threading
-   >>> from queue import Queue
-   >>> from threading import Event, Lock
-   >>>
-   >>> # multiprocessing
-   >>> from multiprocessing import Event, Lock, Queue
-   >>>
-   >>> # freethreading (replaces both)
-   >>> from freethreading import Event, Lock, Queue
-   >>> event = Event()
-   >>> lock = Lock()
-   >>> queue = Queue()
-   >>> lock.acquire()
+   # threading
+   from queue import Queue
+   from threading import Event, Lock
+
+   # multiprocessing
+   from multiprocessing import Event, Lock, Queue
+
+   # freethreading (replaces both)
+   from freethreading import Event, Lock, Queue
+
+   if __name__ == "__main__":
+       event = Event()
+       lock = Lock()
+       queue = Queue()
+       print(lock.acquire())
+       event.set()
+       queue.put("data")
+       print(event.is_set())
+       print(queue.get())
+       lock.release()
+
+**Output**:
+
+.. code-block:: text
+
    True
-   >>> event.set()
-   >>> queue.put("data")
-   >>> event.is_set()
    True
-   >>> queue.get()
-   'data'
-   >>> lock.release()
+   data
 
 :mod:`freethreading` functions merge as much functionality from both backends as possible to ensure consistent behavior
 across backends and simplify adoption. Here's what that looks like:
 
-.. code-block:: pycon
+.. code-block:: python
 
-   >>> # threading
-   >>> from threading import enumerate, get_ident
-   >>>
-   >>> # multiprocessing
-   >>> from multiprocessing import active_children
-   >>> from os import getpid
-   >>>
-   >>> # freethreading (replaces both)
-   >>> from freethreading import active_children, enumerate, get_ident
-   >>> len(active_children())  # excludes current thread or process
+   # threading
+   from threading import enumerate, get_ident
+
+   # multiprocessing
+   from multiprocessing import active_children
+   from os import getpid
+
+   # freethreading (replaces both)
+   from freethreading import active_children, enumerate, get_ident
+
+   if __name__ == "__main__":
+       print(len(active_children()))  # excludes current thread or process
+       print(len(enumerate()))  # includes current thread or process
+       print(get_ident())  # current thread or process identifier
+
+**Output**:
+
+.. code-block:: text
+
    0
-   >>> len(enumerate())  # includes current thread or process
    1
-   >>> get_ident()  # current thread or process identifier
    140247834...
 
 Only :class:`~freethreading.Worker`, :class:`~freethreading.WorkerPool`, :class:`~freethreading.WorkerPoolExecutor`,
 and :func:`~freethreading.current_worker` differ from the standard library naming, using "worker" as a term for both
 threads and processes. Below is an example:
 
-.. note::
+.. code-block:: python
 
-   On Python 3.14 (standard builds), examples using user-defined functions with :class:`~freethreading.Worker`,
-   :class:`~freethreading.WorkerPool`, or :class:`~freethreading.WorkerPoolExecutor` must be saved to a ``.py`` file to
-   run.
+   # threading
+   from concurrent.futures import ThreadPoolExecutor
+   from threading import Thread, current_thread
 
-.. code-block:: pycon
+   # multiprocessing
+   from concurrent.futures import ProcessPoolExecutor
+   from multiprocessing import Process, current_process
 
-   >>> # threading
-   >>> from concurrent.futures import ThreadPoolExecutor
-   >>> from threading import Thread, current_thread
-   >>>
-   >>> # multiprocessing
-   >>> from concurrent.futures import ProcessPoolExecutor
-   >>> from multiprocessing import Process, current_process
-   >>>
-   >>> # freethreading (replaces both)
-   >>> from freethreading import Worker, WorkerPool, WorkerPoolExecutor, current_worker
-   >>> current_worker().name # 'MainThread' or 'MainProcess'
-   'MainThread'
-   >>>
-   >>> def task():
-   ...     print(f"Hello from {current_worker().name}!")
-   ...
-   >>> # Using Worker (Thread or Process) to run a task
-   >>> w = Worker(target=task, name="MyWorker")
-   >>> w.start()
-   >>> w.join()
+   # freethreading (replaces both)
+   from freethreading import Worker, WorkerPool, WorkerPoolExecutor, current_worker
+
+   def greet():
+       print(f"Hello from {current_worker().name}!")
+
+   def square(x):
+       return x * x
+
+   if __name__ == "__main__":
+       # MainThread or MainProcess
+       print(current_worker().name)
+
+       # Using Worker (Thread or Process) to run a task
+       w = Worker(target=greet, name="MyWorker")
+       w.start()
+       w.join()
+
+       # Using WorkerPool (Pool or ThreadPool) to distribute work
+       with WorkerPool(workers=2) as pool:
+           print(pool.map(square, range(5)))
+
+       # Using WorkerPoolExecutor (ThreadPoolExecutor or ProcessPoolExecutor) to run a task
+       with WorkerPoolExecutor(max_workers=2) as executor:
+           future = executor.submit(greet)
+
+**Output (Standard Python)**:
+
+.. code-block:: text
+
+   MainProcess
    Hello from MyWorker!
-   >>>
-   >>> # Using WorkerPool (Pool or ThreadPool) to distribute work
-   >>> def square(x):
-   ...     return x * x
-   ...
-   >>> with WorkerPool(workers=2) as pool:
-   ...     print(pool.map(square, range(5)))
-   ...
    [0, 1, 4, 9, 16]
-   >>>
-   >>> # Using WorkerPoolExecutor (ThreadPoolExecutor or ProcessPoolExecutor) to run a task
-   >>> with WorkerPoolExecutor(max_workers=2) as executor:
-   ...     # 'Hello from ThreadPoolExecutor-0_0!' or 'Hello from ForkProcess-2!'
-   ...     future = executor.submit(task)
-   >>>
+   Hello from ForkServerProcess-4!
+
+**Output (Free-threaded Python)**:
+
+.. code-block:: text
+
+   MainThread
+   Hello from MyWorker!
+   [0, 1, 4, 9, 16]
    Hello from ThreadPoolExecutor-0_0!
 
 

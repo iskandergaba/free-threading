@@ -20,59 +20,12 @@ backend-specific features like shared memory or thread-local storage, then the c
 corresponding backend or to adapt the code to the common feature set of both.
 
 
-Platform Limitations
---------------------
-
-.. todo::
-
-   Document macOS limitation: ``Queue.qsize()`` raises ``NotImplementedError`` on macOS with the multiprocessing
-   backend because ``sem_getvalue()`` is not implemented on that platform.
-
-
 Constraints and Pitfalls
 ------------------------
 
 In addition to general concurrency pitfalls like proper resource cleanup and daemon behavior, :mod:`freethreading` has
 a few of its own that stem from supporting consistent behavior across both :mod:`threading` and :mod:`multiprocessing`
 backends.
-
-REPL Limitations on Python 3.14
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-On Python 3.14 (standard builds), examples using user-defined functions with :class:`~freethreading.Worker`,
-:class:`~freethreading.WorkerPool`, or :class:`~freethreading.WorkerPoolExecutor` must be saved to a ``.py`` file to
-run.
-
-Picklability Requirement
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-Since the :mod:`multiprocessing` backend requires serialization, data passed to workers must be `picklable
-<https://docs.python.org/3/library/pickle.html>`_. The library validates this at :class:`~freethreading.Worker`
-creation time, ensuring code works consistently regardless of which backend is active. Here's a quick example:
-
-.. code-block:: pycon
-
-   >>> from freethreading import Worker
-   >>>
-   >>> # This raises ValueError - lambdas aren't picklable
-   >>> worker = Worker(target=lambda x: x * 2, args=(5,))
-   Traceback (most recent call last):
-     ...
-   ValueError: Worker arguments must be picklable for compatibility with multiprocessing backend...
-
-Module-level functions are picklable and work with both backends. For instance:
-
-.. code-block:: pycon
-
-   >>> from freethreading import Worker
-   >>>
-   >>> def double(x):
-   ...     return x * 2
-   ...
-   >>> worker = Worker(target=double, args=(5,))
-   >>> worker.start()
-   >>> worker.join()
-
 
 Shared State
 ^^^^^^^^^^^^
@@ -81,50 +34,127 @@ Sharing state across workers through variables may produce unexpected results. V
 function are handled differently depending on the backend — with :mod:`multiprocessing`, each process has its own
 memory space, so changes made in one worker are not reflected in other workers. Here is an example:
 
-.. code-block:: pycon
+.. code-block:: python
+   :class: bad
 
-   >>> from freethreading import Worker, get_backend
-   >>>
-   >>> get_backend()
-   'multiprocessing'
-   >>>
-   >>> counter = 0
-   >>>
-   >>> def increment():
-   ...     global counter
-   ...     counter += 1
-   ...
-   >>> workers = [Worker(target=increment) for _ in range(5)]
-   >>> for w in workers:
-   ...     w.start()
-   >>> for w in workers:
-   ...     w.join()
-   >>> counter  # Still 0 with multiprocessing!
+   from freethreading import Worker
+
+   counter = 0
+
+   def increment():
+       global counter
+       counter += 1
+
+   if __name__ == "__main__":
+       workers = [Worker(target=increment) for _ in range(5)]
+       for w in workers:
+           w.start()
+       for w in workers:
+           w.join()
+
+       print(counter) # Still 0 with multiprocessing!
+
+**Output (Standard Python)**:
+
+.. code-block:: text
+   :class: bad
+
    0
+
+**Output (Free-threaded Python)**:
+
+.. code-block:: text
+   :class: bad
+
+   5
 
 :class:`~freethreading.Queue` or :class:`~freethreading.SimpleQueue` should be used instead for passing data between
 workers. Here is an example:
 
-.. code-block:: pycon
+.. code-block:: python
+   :class: good
 
-   >>> from freethreading import Queue, Worker, get_backend
-   >>>
-   >>> get_backend()
-   'multiprocessing'
-   >>>
-   >>> results = Queue()
-   >>>
-   >>> def increment(results):
-   ...     results.put(1)
-   ...
-   >>> workers = [Worker(target=increment, args=(results,)) for _ in range(5)]
-   >>> for w in workers:
-   ...     w.start()
-   >>> for w in workers:
-   ...     w.join()
-   >>> total = sum(results.get() for _ in range(5))
-   >>> total
+   from freethreading import SimpleQueue, Worker
+
+   def increment(results):
+       results.put(1)
+
+   if __name__ == "__main__":
+       results = SimpleQueue()
+       workers = [Worker(target=increment, args=(results,)) for _ in range(5)]
+       for w in workers:
+           w.start()
+       for w in workers:
+           w.join()
+
+       total = sum(results.get() for _ in range(5))
+       print(total)
+
+**Output (Standard Python)**:
+
+.. code-block:: text
+   :class: good
+
    5
+
+**Output (Free-threaded Python)**:
+
+.. code-block:: text
+   :class: good
+
+   5
+
+Picklability Requirement
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Since the :mod:`multiprocessing` backend requires serialization, data passed to workers must be `picklable
+<https://docs.python.org/3/library/pickle.html>`_. The library validates this at :class:`~freethreading.Worker`
+creation time, ensuring code works consistently regardless of which backend is active. Here's a quick example:
+
+.. code-block:: python
+   :class: bad
+
+   from freethreading import Worker
+
+   # This raises ValueError - lambdas aren't picklable
+   worker = Worker(target=lambda: print("Hello!"))
+
+**Output**:
+
+.. code-block:: text
+   :class: bad
+
+   Traceback (most recent call last):
+       ...
+   ValueError: Worker arguments must be picklable for compatibility with multiprocessing backend...
+
+Module-level functions are picklable and work with both backends. For instance:
+
+.. code-block:: python
+   :class: good
+
+   from freethreading import Worker
+
+   def greet():
+       print("Hello!")
+
+   if __name__ == "__main__":
+       worker = Worker(target=greet)
+       worker.start()
+       worker.join()
+
+**Output**:
+
+.. code-block:: text
+   :class: good
+
+   Hello!
+
+``Queue.qsize()`` on macOS
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+On macOS, :meth:`freethreading.Queue.qsize` raises :exc:`NotImplementedError` with the :mod:`multiprocessing` backend
+because ``sem_getvalue()`` is not implemented on that platform.
 
 
 Development Tips
@@ -138,21 +168,33 @@ Checking the Backend
 
 Knowing which parallelism backend is being used can be helpful for debugging. Here's how to check it:
 
-.. code-block:: pycon
+.. code-block:: python
 
-   >>> from freethreading import get_backend
-   >>>
-   >>> get_backend() # 'threading' or 'multiprocessing' depending on your Python build
-   'threading'
+   from freethreading import get_backend
+
+   print(get_backend())
+
+**Output (Standard Python)**:
+
+.. code-block:: text
+
+   multiprocessing
+
+**Output (Free-threaded Python)**:
+
+.. code-block:: text
+
+   threading
 
 
-Testing Both Backends
-^^^^^^^^^^^^^^^^^^^^^
+Testing Across Backends
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Testing code against both backends ensures it works regardless of which one :mod:`freethreading` selects. It is a great
 way to catch some of the pitfalls mentioned above. Here is an example of how to do this using :mod:`pytest`:
 
 .. code-block:: python
+   :caption: pytest_example.py
 
    import pytest
    import sys
@@ -171,22 +213,40 @@ way to catch some of the pitfalls mentioned above. Here is an example of how to 
        import freethreading
        return freethreading
 
-   def test_worker(backend):
-       def task():
-           pass
+   def task():
+       pass
 
+   def test_worker(backend):
        worker = backend.Worker(target=task)
        worker.start()
        worker.join()
+       assert not worker.is_alive()
+
+**Output**:
+
+.. code-block:: console
+
+   $ pytest -v --no-header --tb=no pytest_example.py
+   =========================== test session starts ===========================
+   collected 2 items
+
+   pytest_example.py::test_worker[threading] PASSED                    [ 50%]
+   pytest_example.py::test_worker[multiprocessing] PASSED              [100%]
+
+   ============================ 2 passed in 0.14s ============================
 
 And here is an equivalent example using :mod:`unittest`:
 
 .. code-block:: python
+   :caption: unittest_example.py
 
    import sys
    import unittest
 
-   class BackendTestCase(unittest.TestCase):
+   def task():
+       pass
+
+   class BackendTestMixin:
        backend = None
        original_gil_enabled = None
 
@@ -214,15 +274,26 @@ And here is an equivalent example using :mod:`unittest`:
                sys._is_gil_enabled = cls.original_gil_enabled
 
        def test_worker(self):
-           def task():
-               pass
-
            worker = self.freethreading.Worker(target=task)
            worker.start()
            worker.join()
+           self.assertFalse(worker.is_alive())
 
-   class TestThreadingBackend(BackendTestCase):
+   class TestThreadingBackend(BackendTestMixin, unittest.TestCase):
        backend = 'threading'
 
-   class TestMultiprocessingBackend(BackendTestCase):
+   class TestMultiprocessingBackend(BackendTestMixin, unittest.TestCase):
        backend = 'multiprocessing'
+
+**Output**:
+
+.. code-block:: console
+
+   $ python -m unittest -v unittest_example.py
+   test_worker (unittest_example.TestMultiprocessingBackend.test_worker) ... ok
+   test_worker (unittest_example.TestThreadingBackend.test_worker) ... ok
+
+   ----------------------------------------------------------------------
+   Ran 2 tests in 0.086s
+
+   OK

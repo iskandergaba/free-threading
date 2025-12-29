@@ -12,35 +12,50 @@ APIs.
 
 Examples
 --------
->>> from freethreading import Worker, WorkerPool, WorkerPoolExecutor, current_worker
->>>
->>> def task():
-...     print(f"Hello from {current_worker().name}!")
-...
->>> w = Worker(target=task, name="MyWorker")
->>> w.start()
->>> w.join()
-Hello from MyWorker!
->>>
->>> def square(x):
-...     return x * x
-...
->>> with WorkerPool(workers=2) as pool:
-...     print(pool.map(square, range(5)))
-...
-[0, 1, 4, 9, 16]
->>>
->>> with WorkerPoolExecutor(max_workers=2) as executor:
-...     # 'Hello from ThreadPoolExecutor-0_0!' or 'Hello from ForkProcess-2!'
-...     future = executor.submit(task)
-...
-Hello from ThreadPoolExecutor-0_0!
+.. code-block:: python
 
-Note
-----
-On Python 3.14 (standard builds), examples using user-defined functions with
-:class:`Worker`, :class:`WorkerPool`, or :class:`WorkerPoolExecutor` must be saved to a
-``.py`` file to run.
+    from freethreading import Worker, WorkerPool, WorkerPoolExecutor, current_worker
+
+    def greet():
+        print(f"Hello from {current_worker().name}!")
+
+    def square(x):
+        return x * x
+
+    if __name__ == "__main__":
+        # MainThread or MainProcess
+        print(current_worker().name)
+
+        # Using Worker to distribute work
+        w = Worker(target=greet, name="MyWorker")
+        w.start()
+        w.join()
+
+        # Using WorkerPool to distribute work
+        with WorkerPool(workers=2) as pool:
+            print(pool.map(square, range(5)))
+
+        # Using WorkerPoolExecutor to distribute work
+        with WorkerPoolExecutor(max_workers=2) as executor:
+            future = executor.submit(greet)
+
+**Output (Standard Python)**:
+
+.. code-block:: text
+
+    MainProcess
+    Hello from MyWorker!
+    [0, 1, 4, 9, 16]
+    Hello from ForkServerProcess-4!
+
+**Output (Free-threaded Python)**:
+
+.. code-block:: text
+
+    MainThread
+    Hello from MyWorker!
+    [0, 1, 4, 9, 16]
+    Hello from ThreadPoolExecutor-0_0!
 
 See Also
 --------
@@ -72,12 +87,6 @@ def get_backend() -> Literal["threading", "multiprocessing"]:
     -------
     Literal['threading', 'multiprocessing']
         'threading' when GIL is disabled, and 'multiprocessing' otherwise.
-
-    Examples
-    --------
-    >>> from freethreading import get_backend
-    >>> get_backend()  # 'threading' or 'multiprocessing' depending on your Python build
-    'threading'
     """
     if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
         return "multiprocessing"
@@ -190,25 +199,36 @@ class Barrier:
 
     Examples
     --------
-    >>> from freethreading import Barrier, Worker
-    >>> barrier = Barrier(3)  # Wait for 3 workers
-    >>> def synchronized_task(i):
-    ...     print(f"Worker {i} reached barrier")
-    ...     barrier.wait()
-    ...     print(f"Worker {i} past barrier")
-    ...
-    >>> workers = [Worker(target=synchronized_task, args=(i,)) for i in range(3)]
-    >>> for w in workers:
-    ...     w.start()
-    >>> for w in workers:
-    ...     w.join()
-    ...
-    Worker 0 reached barrier
-    Worker 1 reached barrier
-    Worker 2 reached barrier
-    Worker 0 past barrier
-    Worker 1 past barrier
-    Worker 2 past barrier
+    .. code-block:: python
+
+        from freethreading import Barrier, Worker, current_worker
+
+        def synchronized_task(checkpoint):
+            print(f"'{current_worker().name}' reached checkpoint")
+            checkpoint.wait()
+            print(f"'{current_worker().name}' passed checkpoint")
+
+        if __name__ == "__main__":
+            checkpoint = Barrier(3)
+            workers = [
+                Worker(name=f"Worker-{i}", target=synchronized_task, args=(checkpoint,))
+                for i in range(3)
+            ]
+            for w in workers:
+                w.start()
+            for w in workers:
+                w.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        'Worker-0' reached checkpoint
+        'Worker-1' reached checkpoint
+        'Worker-2' reached checkpoint
+        'Worker-2' passed checkpoint
+        'Worker-0' passed checkpoint
+        'Worker-1' passed checkpoint
     """
 
     def __init__(self, parties, action=None, timeout=None):
@@ -284,15 +304,32 @@ class BoundedSemaphore:
 
     Examples
     --------
-    >>> from freethreading import BoundedSemaphore
-    >>> sem = BoundedSemaphore(1)
-    >>> sem.acquire()
-    True
-    >>> sem.release()
-    >>> sem.release()
-    Traceback (most recent call last):
-        ...
-    ValueError: Semaphore released too many times
+    .. code-block:: python
+
+        from freethreading import BoundedSemaphore, Worker, current_worker
+
+        def limited_resource(sem):
+            with sem:
+                print(f"'{current_worker().name}': in restricted section")
+
+        if __name__ == "__main__":
+            sem = BoundedSemaphore(1)
+            workers = [
+                Worker(name=f"Worker-{i}", target=limited_resource, args=(sem,))
+                for i in range(3)
+            ]
+            for w in workers:
+                w.start()
+            for w in workers:
+                w.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        'Worker-0': in restricted section
+        'Worker-1': in restricted section
+        'Worker-2': in restricted section
     """
 
     def __init__(self, value=1):
@@ -362,29 +399,37 @@ class Condition:
 
     Examples
     --------
-    >>> from freethreading import Condition, Queue, Worker, current_worker
-    >>>
-    >>> condition = Condition()
-    >>> queue = Queue()
-    >>> def producer(data):
-    ...     with condition:
-    ...         queue.put(data)
-    ...         print(f"'{current_worker().name}' sent: {data}")
-    ...         condition.notify()
-    ...
-    >>> def consumer():
-    ...     with condition:
-    ...         condition.wait()
-    ...         print(f"'{current_worker().name}' received: {queue.get()}")
-    ...
-    >>> c = Worker(name="Consumer", target=consumer)
-    >>> p = Worker(name="Producer", target=producer, args=(42,))
-    >>> c.start()
-    >>> p.start()
-    >>> c.join()
-    >>> p.join()
-    'Producer' sent: 42
-    'Consumer' received: 42
+    .. code-block:: python
+
+        from freethreading import Condition, Queue, Worker, current_worker
+
+        def producer(condition, queue, data):
+            with condition:
+                queue.put(data)
+                print(f"'{current_worker().name}' sent: {data}")
+                condition.notify()
+
+        def consumer(condition, queue):
+            with condition:
+                condition.wait()
+                print(f"'{current_worker().name}' received: {queue.get()}")
+
+        if __name__ == "__main__":
+            condition = Condition()
+            queue = Queue()
+            c = Worker(name="Consumer", target=consumer, args=(condition, queue))
+            p = Worker(name="Producer", target=producer, args=(condition, queue, 42))
+            c.start()
+            p.start()
+            c.join()
+            p.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        'Producer' sent: 42
+        'Consumer' received: 42
     """
 
     def __init__(self, lock=None):
@@ -537,27 +582,35 @@ class Event:
 
     Examples
     --------
-    >>> from freethreading import Event, Worker, current_worker
-    >>>
-    >>> event = Event()
-    >>> def wait():
-    ...     print(f"'{current_worker().name}': waiting for notification")
-    ...     event.wait()
-    ...     print(f"'{current_worker().name}': received notification")
-    ...
-    >>> def notify():
-    ...     event.set()
-    ...     print(f"'{current_worker().name}': sent notification")
-    ...
-    >>> waiter = Worker(name="Waiter", target=wait)
-    >>> notifier = Worker(name="Notifier", target=notify)
-    >>> waiter.start()
-    >>> notifier.start()
-    >>> waiter.join()
-    >>> notifier.join()
-    'Waiter': waiting for notification
-    'Notifier': sent notification
-    'Waiter': received notification
+    .. code-block:: python
+
+        from freethreading import Event, Worker, current_worker
+
+        def wait(event):
+            print(f"'{current_worker().name}': waiting for notification")
+            event.wait()
+            print(f"'{current_worker().name}': received notification")
+
+        def notify(event):
+            event.set()
+            print(f"'{current_worker().name}': sent notification")
+
+        if __name__ == "__main__":
+            event = Event()
+            waiter = Worker(name="Waiter", target=wait, args=(event,))
+            notifier = Worker(name="Notifier", target=notify, args=(event,))
+            waiter.start()
+            notifier.start()
+            waiter.join()
+            notifier.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        'Waiter': waiting for notification
+        'Notifier': sent notification
+        'Waiter': received notification
     """
 
     def __init__(self):
@@ -618,21 +671,33 @@ class Lock:
 
     Examples
     --------
-    >>> from freethreading import Lock, Worker, current_worker
-    >>>
-    >>> lock = Lock()
-    >>> def critical():
-    ...     with lock:
-    ...         print(f"'{current_worker().name}': acquired lock")
-    ...
-    >>> workers = [Worker(name=f"Worker-{i}", target=critical) for i in range(2)]
-    >>> for w in workers:
-    ...     w.start()
-    >>> for w in workers:
-    ...     w.join()
-    ...
-    'Worker-0': acquired lock
-    'Worker-1': acquired lock
+    .. code-block:: python
+
+        from freethreading import Lock, Worker, current_worker
+
+        def critical(lock):
+            with lock:
+                print(f"'{current_worker().name}': acquired lock")
+
+        if __name__ == "__main__":
+            lock = Lock()
+            workers = [
+                Worker(name="Worker-1", target=critical, args=(lock,)),
+                Worker(name="Worker-2", target=critical, args=(lock,)),
+                Worker(name="Worker-3", target=critical, args=(lock,)),
+            ]
+            for w in workers:
+                w.start()
+            for w in workers:
+                w.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        'Worker-1': acquired lock
+        'Worker-2': acquired lock
+        'Worker-3': acquired lock
     """
 
     def __init__(self):
@@ -727,33 +792,45 @@ class Queue:
 
     Examples
     --------
-    >>> from freethreading import Queue, Worker
-    >>>
-    >>> queue = Queue()
-    >>> def producer():
-    ...     for value in range(3):
-    ...         queue.put(value)
-    ...     queue.put(None)  # Sentinel marks completion
-    ...
-    >>> def consumer():
-    ...     while True:
-    ...         item = queue.get()
-    ...         if item is None:
-    ...             queue.task_done()
-    ...             break
-    ...         print(f"Processing {item}")
-    ...         queue.task_done()
-    ...
-    >>> producer_worker = Worker(name="Producer", target=producer)
-    >>> consumer_worker = Worker(name="Consumer", target=consumer)
-    >>> producer_worker.start()
-    >>> consumer_worker.start()
-    >>> queue.join()
-    >>> producer_worker.join()
-    >>> consumer_worker.join()
-    Processing 0
-    Processing 1
-    Processing 2
+    .. code-block:: python
+
+        from freethreading import Queue, Worker
+
+        def producer(queue):
+            for value in range(3):
+                print(f"Producing {value}")
+                queue.put(value)
+            queue.put(None)
+
+        def consumer(queue):
+            while True:
+                item = queue.get()
+                if item is None:
+                    queue.task_done()
+                    break
+                print(f"Consuming {item}")
+                queue.task_done()
+
+        if __name__ == "__main__":
+            queue = Queue()
+            producer_worker = Worker(name="Producer", target=producer, args=(queue,))
+            consumer_worker = Worker(name="Consumer", target=consumer, args=(queue,))
+            producer_worker.start()
+            consumer_worker.start()
+            queue.join()
+            producer_worker.join()
+            consumer_worker.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        Producing 0
+        Producing 1
+        Producing 2
+        Consuming 0
+        Consuming 1
+        Consuming 2
     """
 
     def __init__(self, maxsize=0):
@@ -912,24 +989,32 @@ class RLock:
 
     Examples
     --------
-    >>> from freethreading import RLock, Worker, current_worker
-    >>>
-    >>> rlock = RLock()
-    >>> def countdown(n):
-    ...     with rlock:
-    ...         if n > 0:
-    ...             print(f"'{current_worker().name}': {n}...")
-    ...             countdown(n - 1)
-    ...         else:
-    ...             print(f"'{current_worker().name}': go!")
-    ...
-    >>> worker = Worker(name="Worker-0", target=countdown, args=(3,))
-    >>> worker.start()
-    >>> worker.join()
-    'Worker-0': 3...
-    'Worker-0': 2...
-    'Worker-0': 1...
-    'Worker-0': go!
+    .. code-block:: python
+
+        from freethreading import RLock, Worker, current_worker
+
+        def countdown(rlock, n):
+            with rlock:
+                if n > 0:
+                    print(f"'{current_worker().name}': {n}...")
+                    countdown(rlock, n - 1)
+                else:
+                    print(f"'{current_worker().name}': go!")
+
+        if __name__ == "__main__":
+            rlock = RLock()
+            worker = Worker(name="Worker-0", target=countdown, args=(rlock, 3))
+            worker.start()
+            worker.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        'Worker-0': 3...
+        'Worker-0': 2...
+        'Worker-0': 1...
+        'Worker-0': go!
     """
 
     def __init__(self):
@@ -1009,24 +1094,32 @@ class Semaphore:
 
     Examples
     --------
-    >>> from freethreading import Semaphore, Worker, current_worker
-    >>>
-    >>> sem = Semaphore(2)
-    >>> def limited_resource():
-    ...     with sem:
-    ...         print(f"'{current_worker().name}': in restricted section")
-    ...
-    >>> workers = [
-    ...     Worker(name=f"Worker-{i}", target=limited_resource) for i in range(3)
-    ... ]
-    >>> for w in workers:
-    ...     w.start()
-    >>> for w in workers:
-    ...     w.join()
-    ...
-    'Worker-0': in restricted section
-    'Worker-1': in restricted section
-    'Worker-2': in restricted section
+    .. code-block:: python
+
+        from freethreading import Semaphore, Worker, current_worker
+
+        def limited_resource(sem):
+            with sem:
+                print(f"'{current_worker().name}': in restricted section")
+
+        if __name__ == "__main__":
+            sem = Semaphore(1)
+            workers = [
+                Worker(name=f"Worker-{i}", target=limited_resource, args=(sem,))
+                for i in range(3)
+            ]
+            for w in workers:
+                w.start()
+            for w in workers:
+                w.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        'Worker-0': in restricted section
+        'Worker-1': in restricted section
+        'Worker-2': in restricted section
     """
 
     def __init__(self, value=1):
@@ -1084,22 +1177,30 @@ class SimpleQueue:
 
     Examples
     --------
-    >>> from freethreading import SimpleQueue, Worker
-    >>>
-    >>> queue = SimpleQueue()
-    >>> def fill_queue():
-    ...     queue.put("hello")
-    ...     queue.put("world")
-    ...
-    >>> worker = Worker(target=fill_queue)
-    >>> worker.start()
-    >>> queue.get()
-    'hello'
-    >>> queue.get()
-    'world'
-    >>> worker.join()
-    >>> queue.empty()
-    True
+    .. code-block:: python
+
+        from freethreading import SimpleQueue, Worker
+
+        def fill_queue(queue):
+            queue.put("hello")
+            queue.put("world")
+
+        if __name__ == "__main__":
+            queue = SimpleQueue()
+            worker = Worker(target=fill_queue, args=(queue,))
+            worker.start()
+            print(queue.get())
+            print(queue.get())
+            worker.join()
+            print(queue.empty())
+
+    **Output**:
+
+    .. code-block:: text
+
+        hello
+        world
+        True
     """
 
     def __init__(self):
@@ -1192,15 +1293,23 @@ class Worker:
 
     Examples
     --------
-    >>> from freethreading import Worker, current_worker
-    >>>
-    >>> def greet():
-    ...     print(f"Hello from '{current_worker().name}'")
-    ...
-    >>> worker = Worker(name="Worker", target=greet)
-    >>> worker.start()
-    >>> worker.join()
-    Hello from 'Worker'
+    .. code-block:: python
+
+        from freethreading import Worker, current_worker
+
+        def greet():
+            print(f"Hello from {current_worker().name}!")
+
+        if __name__ == "__main__":
+            worker = Worker(name="Worker", target=greet)
+            worker.start()
+            worker.join()
+
+    **Output**:
+
+    .. code-block:: text
+
+        Hello from Worker!
     """
 
     def __init__(
@@ -1319,14 +1428,22 @@ class WorkerPool:
 
     Examples
     --------
-    >>> from freethreading import WorkerPool
-    >>>
-    >>> def square(x):
-    ...     return x * x
-    >>> with WorkerPool(workers=4) as pool:
-    ...     results = pool.map(square, range(10))
-    >>> results
-    [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
+    .. code-block:: python
+
+        from freethreading import WorkerPool
+
+        def square(x):
+            return x * x
+
+        if __name__ == "__main__":
+            with WorkerPool(workers=4) as pool:
+                print(pool.map(square, range(10)))
+
+    **Output**:
+
+    .. code-block:: text
+
+        [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
     """
 
     def __init__(self, workers=None, initializer=None, initargs=()):
@@ -1634,13 +1751,23 @@ class WorkerPoolExecutor:
 
     Examples
     --------
-    >>> from freethreading import WorkerPoolExecutor
-    >>> def square(x):
-    ...     return x * x
-    >>> with WorkerPoolExecutor(max_workers=4) as executor:
-    ...     results = list(executor.map(square, range(10)))
-    >>> results
-    [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
+    .. code-block:: python
+
+        from freethreading import WorkerPoolExecutor
+
+        def square(x):
+            return x * x
+
+        if __name__ == "__main__":
+            with WorkerPoolExecutor(max_workers=4) as executor:
+                results = list(executor.map(square, range(10)))
+            print(results)
+
+    **Output**:
+
+    .. code-block:: text
+
+        [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
     """
 
     def __init__(self, max_workers=None, initializer=None, initargs=(), **kwargs):
@@ -1769,14 +1896,24 @@ def active_children() -> list[Thread] | list[BaseProcess]:
 
     Examples
     --------
-    >>> from freethreading import active_children, Worker
-    >>> def task():
-    ...     pass
-    >>> w = Worker(target=task)
-    >>> w.start()
-    >>> children = active_children()
-    >>> len(children) >= 1  # At least our worker
-    True
+    .. code-block:: python
+
+        from freethreading import Worker, active_children
+
+        def busy_wait():
+            while True:
+                pass
+
+        if __name__ == "__main__":
+            daemon = Worker(target=busy_wait, name="Daemon", daemon=True)
+            daemon.start()
+            print([child.name for child in active_children()])
+
+    **Output**:
+
+    .. code-block:: text
+
+        ['Daemon']
     """
     return _active_children()
 
@@ -1802,16 +1939,24 @@ def active_count() -> int:
 
     Examples
     --------
-    >>> from freethreading import Worker, active_count
-    >>>
-    >>> def busy_wait():
-    ...     while True:
-    ...         pass
-    ...
-    >>> daemon = Worker(target=busy_wait, name="Daemon", daemon=True) # Daemon worker
-    >>> daemon.start()
-    >>> active_count()  # Main worker + our worker
-    2
+    .. code-block:: python
+
+        from freethreading import Worker, active_count
+
+        def busy_wait():
+            while True:
+                pass
+
+        if __name__ == "__main__":
+            daemon = Worker(target=busy_wait, daemon=True)
+            daemon.start()
+            print(active_count())  # Should print 2 (main worker + daemon worker)
+
+    **Output**:
+
+    .. code-block:: text
+
+        2
     """
     return _active_count()
 
@@ -1832,39 +1977,25 @@ def current_worker() -> Thread | BaseProcess:
 
     Examples
     --------
-    >>> from freethreading import current_worker
-    >>> current_worker().name # 'MainThread' or 'MainProcess'
-    'MainThread'
+    .. code-block:: python
+
+        from freethreading import current_worker
+
+        print(current_worker().name)
+
+    **Output (Standard Python)**:
+
+    .. code-block:: text
+
+        MainProcess
+
+    **Output (Free-threaded Python)**:
+
+    .. code-block:: text
+
+        MainThread
     """
     return _current_worker()
-
-
-def get_ident() -> int:
-    """
-    Return the identifier of the current worker.
-
-    Returns
-    -------
-    int
-        Thread identifier or process ID of the current worker.
-
-    See Also
-    --------
-    current_worker : Get the current worker
-
-    Notes
-    -----
-    - When using threading backend: Returns thread identifier
-    - When using multiprocessing backend: Returns process ID (PID)
-
-    Examples
-    --------
-    >>> from freethreading import get_ident
-    >>> ident = get_ident()
-    >>> isinstance(ident, int)
-    True
-    """
-    return _get_ident()
 
 
 def enumerate() -> list[Thread] | list[BaseProcess]:
@@ -1890,18 +2021,48 @@ def enumerate() -> list[Thread] | list[BaseProcess]:
 
     Examples
     --------
-    >>> from freethreading import Worker, enumerate
-    >>>
-    >>> def busy_wait():
-    ...     while True:
-    ...         pass
-    ...
-    >>> daemon = Worker(target=busy_wait, name="Daemon", daemon=True) # Daemon worker
-    >>> daemon.start()
-    >>> len(enumerate())  # Main worker + our worker
-    2
+    .. code-block:: python
+
+        from freethreading import Worker, enumerate
+
+        def busy_wait():
+            while True:
+                pass
+
+        if __name__ == "__main__":
+            daemon = Worker(target=busy_wait, name="Daemon", daemon=True)
+            daemon.start()
+            print([worker.name for worker in enumerate()])
+
+    **Output (Standard Python)**:
+
+    .. code-block:: text
+
+        ['Daemon', 'MainProcess']
+
+    **Output (Free-threaded Python)**:
+
+    .. code-block:: text
+
+        ['MainThread', 'Daemon']
     """
     return _enumerate()
+
+
+def get_ident() -> int:
+    """
+    Return the identifier of the current worker.
+
+    Returns
+    -------
+    int
+        Thread identifier or process ID of the current worker.
+
+    See Also
+    --------
+    current_worker : Get the current worker
+    """
+    return _get_ident()
 
 
 __all__ = [
@@ -1920,7 +2081,7 @@ __all__ = [
     "active_children",
     "active_count",
     "current_worker",
+    "enumerate",
     "get_backend",
     "get_ident",
-    "enumerate",
 ]

@@ -44,6 +44,7 @@ autoapi_options = [
 ]
 autoapi_keep_files = True
 autoapi_add_toctree_entry = False
+autoapi_member_order = "groupwise"
 
 # Options for HTML output
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

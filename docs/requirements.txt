@@ -77,7 +77,7 @@ typing-extensions==4.15.0 ; python_full_version == '3.12.*'
     #   starlette
 urllib3==2.6.2 ; python_full_version >= '3.12'
     # via requests
-uvicorn==0.38.0 ; python_full_version >= '3.12'
+uvicorn==0.40.0 ; python_full_version >= '3.12'
     # via sphinx-autobuild
 watchfiles==1.1.1 ; python_full_version >= '3.12'
     # via sphinx-autobuild

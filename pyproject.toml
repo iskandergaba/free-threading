@@ -46,8 +46,8 @@ dev = [
 ]
 docs = [
     "sphinx-autoapi~=3.6.0",
-    "python-docs-theme~=2025.12",
     "sphinx-autobuild~=2025.8.0",
+    "python-docs-theme~=2025.12",
 ]
 
 [tool.uv.build-backend]

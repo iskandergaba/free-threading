@@ -38,7 +38,7 @@ Repository = "https://github.com/iskandergaba/free-threading"
 
 [dependency-groups]
 dev = [
-    "ruff~=0.14.0",
+    "ruff~=0.15.0",
     "pytest~=9.0.0",
     "pytest-cov~=7.0.0",
     "pytest-rerunfailures~=16.1.0",

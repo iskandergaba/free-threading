@@ -150,6 +150,18 @@ Module-level functions are picklable and work with both backends. For instance:
 
    Hello!
 
+Non-Thread-Safe C Extensions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In free-threaded Python builds, the GIL is re-enabled at runtime when a C extension not marked as thread-safe is
+loaded. Since :mod:`freethreading` determines its backend once at import time based on the current GIL state, loading
+such an extension afterward means the library continues using the :mod:`threading` backend even though the GIL is now
+enabled.
+
+This is by design — switching backends mid-execution would cause incompatibilities between primitives created at
+different times. To avoid this, import :mod:`freethreading` after loading any C extensions whose thread-safety is
+unknown.
+
 ``Queue.qsize()`` on macOS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -44,7 +44,7 @@ dev = [
     "pytest-rerunfailures~=16.1.0",
 ]
 docs = [
-    "sphinx-autoapi~=3.6.0",
+    "sphinx-autoapi~=3.7.0",
     "sphinx-autobuild~=2025.8.0",
     "python-docs-theme~=2025.12",
 ]

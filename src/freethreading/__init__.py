@@ -88,7 +88,7 @@ def get_backend() -> Literal["threading", "multiprocessing"]:
     Literal['threading', 'multiprocessing']
         'threading' when GIL is disabled, and 'multiprocessing' otherwise.
     """
-    if sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True:
+    if getattr(sys, "_is_gil_enabled", lambda: True)():
         return "multiprocessing"
     return "threading"
 
@@ -108,7 +108,7 @@ def _get_mp_context():
         raise AssertionError(
             "Attempting to get multiprocessing context while on threading backend"
         )
-    if sys.platform == "win32" or sys.platform == "darwin":
+    if sys.platform in ("win32", "darwin"):
         return get_context("spawn")
     return get_context("forkserver")
 

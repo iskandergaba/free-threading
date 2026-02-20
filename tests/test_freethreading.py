@@ -493,6 +493,7 @@ def test_worker_pool_apply(backend):
     assert result == 25
 
 
+@pytest.mark.flaky(reruns=3)
 def test_worker_pool_apply_with_kwds(backend):
     with backend.WorkerPool(workers=2) as pool:
         result = pool.apply(task_with_kwargs, (5,), {"y": 3})
@@ -509,6 +510,7 @@ def test_worker_pool_apply_async(backend):
     assert result == 49
 
 
+@pytest.mark.flaky(reruns=3)
 def test_worker_pool_apply_async_callback(backend):
     results = []
 

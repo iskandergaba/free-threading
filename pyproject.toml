@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "free-threading"
-version = "1.1.0"
+version = "1.1.1rc0"
 description = "Thread-first true parallelism"
 license = "MIT"
 readme = "README.md"

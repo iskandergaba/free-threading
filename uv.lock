@@ -306,7 +306,7 @@ wheels = [
 
 [[package]]
 name = "free-threading"
-version = "1.1.0"
+version = "1.1.1rc0"
 source = { editable = "." }
 
 [package.dev-dependencies]

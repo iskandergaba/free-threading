@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build"]
+requires = ["uv_build~=0.11"]
 build-backend = "uv_build"
 
 [project]
@@ -44,9 +44,9 @@ dev = [
     "pytest-rerunfailures~=16.1.0",
 ]
 docs = [
-    "sphinx-autoapi~=3.7.0",
+    "sphinx-autoapi~=3.8.0",
     "sphinx-autobuild~=2025.08.0",
-    "python-docs-theme~=2026.2",
+    "python-docs-theme~=2026.3",
 ]
 
 [tool.uv.build-backend]

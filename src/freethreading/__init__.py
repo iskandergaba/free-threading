@@ -1865,7 +1865,7 @@ def _raise_unpickle_type_error():
 def _validate_picklability(**kwargs):
     """Validate that all arguments are picklable for multiprocessing compatibility."""
     spawning_popen = get_spawning_popen()
-    set_spawning_popen(_DummyPopen)
+    set_spawning_popen(_DummyPopen)  # type: ignore[arg-type]
     try:
         dump(tuple(kwargs.values()), io.BytesIO())
     except (AttributeError, TypeError, pickle.PicklingError) as e:

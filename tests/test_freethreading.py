@@ -104,8 +104,7 @@ def test_condition_with_rlock(backend):
     rlock = backend.RLock()
     cond = backend.Condition(rlock)
     with cond:
-        with cond:
-            assert cond is not None
+        assert cond is not None
 
 
 def test_condition_acquire_release(backend):
@@ -143,13 +142,9 @@ def test_condition_context_manager_exception(backend):
 
 def test_condition_wait(backend):
     cond = backend.Condition()
-    error_raised = False
-    try:
-        with cond:
-            cond.wait(timeout=0.01)
-    except Exception:
-        error_raised = True
-    assert not error_raised
+    with cond:
+        notified = cond.wait(timeout=0.01)
+    assert notified is False
 
 
 def test_condition_wait_for(backend):
@@ -180,6 +175,8 @@ def test_condition_notify_all(backend):
     cond = backend.Condition()
     with cond:
         cond.notify_all()
+    assert cond.acquire()
+    cond.release()
 
 
 def test_event_is_set(backend):
@@ -283,22 +280,17 @@ def test_queue_nowait_methods(backend):
 
 def test_queue_task_done_join(backend):
     q = backend.Queue()
-    error_raised = False
 
-    try:
-        q.put(1)
-        q.put(2)
+    q.put(1)
+    q.put(2)
 
-        q.get()
-        q.task_done()
-        q.get()
-        q.task_done()
+    assert q.get() == 1
+    q.task_done()
+    assert q.get() == 2
+    q.task_done()
 
-        q.join()
-    except Exception:
-        error_raised = True
-
-    assert not error_raised
+    q.join()
+    assert q.empty()
 
 
 def test_queue_qsize(backend):
@@ -366,8 +358,7 @@ def test_rlock_acquire_negative_timeout(backend):
 def test_rlock_context_manager(backend):
     lock = backend.RLock()
     with lock:
-        with lock:
-            assert lock is not None
+        assert lock is not None
 
 
 def test_semaphore_acquire_release(backend):
@@ -591,6 +582,11 @@ def test_worker_pool_terminate(backend):
     pool = backend.WorkerPool(workers=2)
     pool.terminate()
     pool.join()
+    try:
+        pool.apply(task_with_args, (1,))
+        assert False, "Should not be able to apply after terminate"
+    except ValueError:
+        pass
 
 
 def test_worker_pool_pickling_exception(backend):

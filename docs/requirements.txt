@@ -10,7 +10,7 @@ astroid==4.1.2 ; python_full_version >= '3.12'
     # via sphinx-autoapi
 babel==2.18.0 ; python_full_version >= '3.12'
     # via sphinx
-certifi==2026.6.17 ; python_full_version >= '3.12'
+certifi==2026.7.22 ; python_full_version >= '3.12'
     # via requests
 charset-normalizer==3.4.9 ; python_full_version >= '3.12'
     # via requests
@@ -41,7 +41,7 @@ packaging==26.2 ; python_full_version >= '3.12'
     # via sphinx
 pygments==2.20.0 ; python_full_version >= '3.12'
     # via sphinx
-python-docs-theme==2026.4 ; python_full_version >= '3.12'
+python-docs-theme==2026.7 ; python_full_version >= '3.12'
 pyyaml==6.0.3 ; python_full_version >= '3.12'
     # via sphinx-autoapi
 requests==2.34.2 ; python_full_version >= '3.12'
@@ -77,7 +77,7 @@ typing-extensions==4.16.0 ; python_full_version == '3.12.*'
     #   starlette
 urllib3==2.7.0 ; python_full_version >= '3.12'
     # via requests
-uvicorn==0.51.0 ; python_full_version >= '3.12'
+uvicorn==0.52.0 ; python_full_version >= '3.12'
     # via sphinx-autobuild
 watchfiles==1.2.0 ; python_full_version >= '3.12'
     # via sphinx-autobuild

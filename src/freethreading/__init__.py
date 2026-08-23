@@ -127,21 +127,24 @@ if get_backend() == "threading":
     from threading import Semaphore as _Semaphore
     from threading import Thread as _Worker
     from threading import active_count as _active_count
-    from threading import current_thread as _current_worker
+    from threading import current_thread
     from threading import enumerate as _enumerate
     from threading import get_ident as _get_ident
 
+    _current_worker = current_thread
+
     def _active_children():
         children = list(_enumerate())
-        children.remove(_current_worker())
+        children.remove(current_thread())
         return children
 
 else:
     from concurrent.futures import ProcessPoolExecutor as _WorkerPoolExecutor
     from multiprocessing import active_children as _active_children
-    from multiprocessing import current_process as _current_worker
+    from multiprocessing import current_process
     from os import getpid as _get_ident
 
+    _current_worker = current_process
     _Barrier = _get_mp_context().Barrier
     _BoundedSemaphore = _get_mp_context().BoundedSemaphore
     _Condition = _get_mp_context().Condition
@@ -159,7 +162,7 @@ else:
 
     def _enumerate():
         workers = list(_active_children())
-        workers.append(_current_worker())
+        workers.append(current_process())
         return workers
 
 
@@ -434,7 +437,7 @@ class Condition:
 
     def __init__(self, lock=None):
         self._condition = _Condition(
-            lock._lock if isinstance(lock, (Lock, RLock)) else None  # type: ignore[arg-type]
+            lock._lock if isinstance(lock, (Lock, RLock)) else None
         )
 
     def __reduce__(self):
@@ -458,13 +461,9 @@ class Condition:
         bool
             True if acquired, False if not acquired (non-blocking or timeout).
         """
-        if get_backend() == "threading":
-            if timeout is None or timeout < 0:
-                timeout = -1
-        else:
-            if timeout is not None and timeout < 0:
-                timeout = None
-        return self._condition.acquire(blocking, timeout)  # type: ignore[call-arg]
+        if timeout is None or timeout < 0:
+            return self._condition.acquire(blocking)
+        return self._condition.acquire(blocking, timeout)
 
     def release(self):
         """
@@ -725,13 +724,9 @@ class Lock:
         bool
             True if acquired, False if not acquired (non-blocking or timeout).
         """
-        if get_backend() == "threading":
-            if timeout is None or timeout < 0:
-                timeout = -1
-        else:
-            if timeout is not None and timeout < 0:
-                timeout = None
-        return self._lock.acquire(blocking, timeout)  # type: ignore[call-arg]
+        if timeout is None or timeout < 0:
+            return self._lock.acquire(blocking)
+        return self._lock.acquire(blocking, timeout)
 
     def release(self):
         """
@@ -756,7 +751,7 @@ class Lock:
             True if locked, False otherwise.
         """
         if hasattr(self._lock, "locked"):
-            return self._lock.locked()  # type: ignore[attr-defined]
+            return self._lock.locked()
 
         # Fallback for Python < 3.14
         if self.acquire(blocking=False):
@@ -1042,13 +1037,9 @@ class RLock:
         bool
             True if acquired, False if not acquired (non-blocking or timeout).
         """
-        if get_backend() == "threading":
-            if timeout is None or timeout < 0:
-                timeout = -1
-        else:
-            if timeout is not None and timeout < 0:
-                timeout = None
-        return self._lock.acquire(blocking, timeout)  # type: ignore[call-arg]
+        if timeout is None or timeout < 0:
+            return self._lock.acquire(blocking)
+        return self._lock.acquire(blocking, timeout)
 
     def release(self):
         """
@@ -1865,7 +1856,7 @@ def _raise_unpickle_type_error():
 def _validate_picklability(**kwargs):
     """Validate that all arguments are picklable for multiprocessing compatibility."""
     spawning_popen = get_spawning_popen()
-    set_spawning_popen(_DummyPopen)  # type: ignore[arg-type]
+    set_spawning_popen(_DummyPopen)  # ty: ignore[invalid-argument-type]
     try:
         dump(tuple(kwargs.values()), io.BytesIO())
     except (AttributeError, TypeError, pickle.PicklingError) as e:

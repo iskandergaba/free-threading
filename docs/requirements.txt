@@ -55,7 +55,7 @@ sphinx==9.1.0 ; python_full_version >= '3.12'
     #   python-docs-theme
     #   sphinx-autoapi
     #   sphinx-autobuild
-sphinx-autoapi==3.8.0 ; python_full_version >= '3.12'
+sphinx-autoapi==3.8.1 ; python_full_version >= '3.12'
 sphinx-autobuild==2025.8.25 ; python_full_version >= '3.12'
 sphinxcontrib-applehelp==2.0.0 ; python_full_version >= '3.12'
     # via sphinx

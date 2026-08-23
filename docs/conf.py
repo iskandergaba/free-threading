@@ -1,4 +1,4 @@
-import tomllib
+import tomllib  # ty: ignore[unresolved-import]
 
 # Configuration file for the Sphinx documentation builder.
 #

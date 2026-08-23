@@ -110,13 +110,22 @@ def test_condition_with_rlock(backend):
 def test_condition_acquire_release(backend):
     cond = backend.Condition()
     acquired = cond.acquire()
-    assert acquired is True
+    assert acquired
+    cond.release()
+
+
+def test_condition_acquire_timeout(backend):
+    cond = backend.Condition()
+
+    acquired = cond.acquire(timeout=0.01)
+    assert acquired
+
     cond.release()
 
 
 def test_condition_acquire_negative_timeout(backend):
     cond = backend.Condition()
-    result = cond.acquire(blocking=True, timeout=-0.5)
+    result = cond.acquire(blocking=True, timeout=-1)
     assert result
     cond.release()
 
@@ -144,7 +153,7 @@ def test_condition_wait(backend):
     cond = backend.Condition()
     with cond:
         notified = cond.wait(timeout=0.01)
-    assert notified is False
+    assert not notified
 
 
 def test_condition_wait_for(backend):
@@ -225,8 +234,8 @@ def test_lock_acquire_timeout(backend):
     acquired = lock.acquire(timeout=0.01)
     assert acquired
 
-    acquired2 = lock.acquire(blocking=False)
-    assert not acquired2
+    acquired = lock.acquire(blocking=False)
+    assert not acquired
 
     lock.release()
 
@@ -348,9 +357,18 @@ def test_rlock_acquire_release(backend):
     lock.release()
 
 
+def test_rlock_acquire_timeout(backend):
+    lock = backend.RLock()
+
+    acquired = lock.acquire(timeout=0.01)
+    assert acquired
+
+    lock.release()
+
+
 def test_rlock_acquire_negative_timeout(backend):
     lock = backend.RLock()
-    result = lock.acquire(blocking=True, timeout=-0.5)
+    result = lock.acquire(blocking=True, timeout=-1)
     assert result
     lock.release()
 
@@ -383,8 +401,8 @@ def test_semaphore_timeout(backend):
     acquired = sem.acquire(timeout=0.01)
     assert acquired
 
-    acquired2 = sem.acquire(blocking=False)
-    assert not acquired2
+    acquired = sem.acquire(blocking=False)
+    assert not acquired
 
     sem.release()
 
@@ -436,10 +454,10 @@ def test_worker_name_property(backend):
 
 def test_worker_daemon_property(backend):
     worker = backend.Worker(target=task, daemon=False)
-    assert worker.daemon is False
+    assert not worker.daemon
 
     worker.daemon = True
-    assert worker.daemon is True
+    assert worker.daemon
 
     worker.start()
     worker.join()

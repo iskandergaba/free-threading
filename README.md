@@ -115,11 +115,14 @@ from multiprocessing import Process, current_process
 # freethreading (replaces both)
 from freethreading import Worker, WorkerPool, WorkerPoolExecutor, current_worker
 
+
 def greet():
     print(f"Hello from {current_worker().name}!")
 
+
 def square(x):
     return x * x
+
 
 if __name__ == "__main__":
     # MainThread or MainProcess

@@ -6,7 +6,7 @@ anyio==4.15.1 ; python_full_version >= '3.12'
     # via
     #   starlette
     #   watchfiles
-astroid==4.3.3 ; python_full_version >= '3.12'
+astroid==4.3.4 ; python_full_version >= '3.12'
     # via sphinx-autoapi
 babel==2.18.0 ; python_full_version >= '3.12'
     # via sphinx

@@ -38,14 +38,14 @@ Repository = "https://github.com/iskandergaba/free-threading"
 
 [dependency-groups]
 dev = [
-    "ty~=0.0.80",
+    "ty~=0.0.100",
     "ruff~=0.17.0",
-    "pytest~=9.1.0",
+    "pytest~=9.2.0",
     "pytest-cov~=7.1.0",
     "pytest-rerunfailures~=16.0",
 ]
 docs = [
-    "sphinx-autoapi~=3.8.0",
+    "sphinx-autoapi~=3.9.0",
     "sphinx-autobuild~=2025.08.0",
     "python-docs-theme~=2026.0",
 ]
